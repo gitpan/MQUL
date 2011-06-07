@@ -1,0 +1,41 @@
+This file contains message digests of all files listed in MANIFEST,
+signed via the Module::Signature module, version 0.66.
+
+To verify the content in this distribution, first make sure you have
+Module::Signature installed, then type:
+
+    % cpansign -v
+
+It will check each file's integrity, as well as the signature's
+validity.  If "==> Signature verified OK! <==" is not displayed,
+the distribution may already have been compromised, and you should
+not run its Makefile.PL or Build.PL.
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+SHA1 66761557c444b05c6c92a830fda83798786ff404 Changes
+SHA1 28ae9821ca88a0582b36fac55dc52cd696175774 INSTALL
+SHA1 4fd10efcea7157e7d9c3a45e000c91119dcad1f7 LICENSE
+SHA1 5b5cb81ece438684639b7552bc10b42b4e69492e MANIFEST
+SHA1 7f0926bc13d083a9ed7f16b332366f2afab27db1 MANIFEST.SKIP
+SHA1 c93a5194e67c40222ac6f5e4b4d79a9dc2d83576 META.json
+SHA1 eca8087424c9bf3137dd96acfe44926652e75020 META.yml
+SHA1 240caa040b5d46cadb15e426232a4795bfcac866 Makefile.PL
+SHA1 4caaa3871c5f25d72a78bc04417ac25ce7309d78 README
+SHA1 cd0870e100cc193cec397f6af4713b50ca3ec705 dist.ini
+SHA1 56a77039d284cce36cd91b6b97245c29f723c0ca lib/MQUL.pm
+SHA1 9c4ca158f13465805e9de8ae7f4db5b945c6236b lib/MQUL/Reference.pod
+SHA1 4124b4d1ddf0187e98ef124a50d311a4261c6e41 t/00-load.t
+SHA1 b42d61f6b3f0a3785591314a22c5e7c395a8526e t/01-querying.t
+SHA1 5f8337b9757017e97297e43c2942b0bc9afb7d4f t/02-updating.t
+SHA1 87768d177f8c2e2df9c591cde869e7c8a245555e t/release-dist-manifest.t
+SHA1 9433c240fe590bc404ab68ff63984df763e347ed t/release-pod-coverage.t
+SHA1 b30cbdfaf935017c4568c0c91b242438cb87786e t/release-pod-syntax.t
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.4.11 (GNU/Linux)
+
+iF4EAREIAAYFAk3ugWkACgkQa4OHQAFM10cUJwD/V1oixNTcnIotyfIDg2wNKoon
+Fzb1UPJj+Px2PFU7xesBAKqlu7K0MwOvuYOZwUqUXJ1GAxwgc06H3WCfrhGhdCQ7
+=h79b
+-----END PGP SIGNATURE-----

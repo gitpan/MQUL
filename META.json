@@ -1,0 +1,51 @@
+{
+   "abstract" : "General purpose, MongoDB-style query and update language",
+   "author" : [
+      "Ido Perlmuter <ido@ido50.net>"
+   ],
+   "dynamic_config" : 0,
+   "generated_by" : "Dist::Zilla version 4.200004, CPAN::Meta::Converter version 2.110930",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "MQUL",
+   "prereqs" : {
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "6.31"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Carp" : 0,
+            "Data::Compare" : 0,
+            "Data::Types" : 0,
+            "DateTime::Format::W3CDTF" : 0,
+            "Exporter" : 0,
+            "Scalar::Util" : 0,
+            "Try::Tiny" : 0,
+            "perl" : "5.006"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test::More" : 0
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "homepage" : "http://github.com/ido50/MQUL/tree",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/ido50/MQUL.git",
+         "web" : "http://github.com/ido50/MQUL/tree"
+      }
+   },
+   "version" : "0.001"
+}
+

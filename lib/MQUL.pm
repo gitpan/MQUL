@@ -1,0 +1,690 @@
+package MQUL;
+
+# ABSTRACT: General purpose, MongoDB-style query and update language
+
+BEGIN {
+	use Exporter 'import';
+	@EXPORT_OK = qw/doc_matches update_doc/;
+}
+
+use warnings;
+use strict;
+use Carp;
+use Data::Compare;
+use Data::Types qw/:is/;
+use DateTime::Format::W3CDTF;
+use Scalar::Util qw/blessed/;
+use Try::Tiny;
+
+our $VERSION = "0.001";
+$VERSION = eval $VERSION;
+
+=head1 NAME
+
+MQUL - General purpose, MongoDB-style query and update language
+
+=head1 VERSION
+
+version 0.001
+
+=head1 SYNOPSIS
+
+	use MQUL qw/doc_matches update_doc/;
+
+	my $doc = {
+		title => 'Freaks and Geeks',
+		genres => [qw/comedy drama/],
+		imdb_score => 9.4,
+		seasons => 1,
+		starring => ['Linda Cardellini', 'James Franco', 'Jason Segel'],
+	};
+
+	if (doc_matches($doc, {
+		title => qr/geeks/i,
+		genres => 'comedy',
+		imdb_score => { '$gte' => 5, '$lte' => 9.5 },
+		starring => { '$type' => 'array', '$size' => 3 },
+	})) {
+		# will be true in this example
+	}
+
+	update_doc($doc, {
+		'$set' => { title => 'Greeks and Feaks' },
+		'$pop' => { genres => 1 },
+		'$inc' => { imdb_score => 0.6 },
+		'$unset' => { seasons => 1 },
+		'$push' => { starring => 'John Francis Daley' },
+	});
+
+	# $doc will now be:
+	{
+		title => 'Greeks and Feaks',
+		genres => ['comedy'],
+		imdb_score => 10,
+		starring => ['Linda Cardellini', 'James Franco', 'Jason Segel', 'John Francis Daley'],
+	}
+
+=head1 DESCRIPTION
+
+MQUL (for B<M>ongoDB-style B<Q>uery & B<U>pdate B<L>anguage; pronounced
+B<umm, cool> - yeah, I know, that's the dumbest thing ever), is a general
+purpose implementation of L<MongoDB>'s query and update language. The
+implementation is not 100% compatible (it deviates only slightly from
+MongoDB's behavior, and adds a few operators the original language is
+missing).
+
+The module exports two functions: C<doc_matches()> and C<update_doc()>.
+The first method takes a document, which is really just a hash-ref (of
+whatever complexity), and a query hash-ref built in the MQUL query language. The
+method will return a true value if the document matches the query, and a
+false value otherwise. The second method takes a document and an update
+hash-ref built in the MQUL update language. The method updates the document
+(in-place) according to the update hash-ref.
+
+You can use this module for whatever purpose you see fit. It was actually
+written for L<Giddy>, my Git-database, and was extracted from Giddy's
+original code.
+
+=head2 THE LANGUAGE
+
+The language itself is described in L<MQUL::Reference>. This document
+only describes the interface of this module.
+
+You should note that MQUL does not yet support MongoDB's dot notation,
+but I plan to add to support for it in later releases.
+
+=head1 INTERFACE
+
+=head2 doc_matches( \%document, [ \%query ] )
+
+Receives a document hash-ref and possibly a query hash-ref, and returns
+true if the document matches the query, false otherwise. If no query
+is given (or an empty hash-ref is given), true will be returned (every
+document will match an empty query - in accordance with MongoDB).
+
+See L<MQUL::Reference/"QUERY STRUCTURE"> to learn about the structure of
+query hash-refs.
+
+=cut
+
+sub doc_matches {
+	my ($doc, $query) = @_;
+
+	croak "MQUL::doc_matches() requires a document hash-ref."
+		unless $doc && ref $doc && ref $doc eq 'HASH';
+	croak "MQUL::doc_matches() expects a query hash-ref."
+		if $query && (!ref $query || (ref $query && ref $query ne 'HASH'));
+
+	$query ||= {};
+
+	# go over each key of the query
+	foreach my $key (keys %$query) {
+		my $value = $query->{$key};
+		if ($key eq '$or' && ref $value eq 'ARRAY') {
+			my $found;
+			foreach (@$value) {
+				next unless ref $_ eq 'HASH';
+				my $ok = 1;
+				while (my ($k, $v) = each %$_) {
+					unless (&_attribute_matches($doc, $k, $v)) {
+						undef $ok;
+						last;
+					}
+				}
+				if ($ok) { # document matches this criteria
+					$found = 1;
+					last;
+				}
+			}
+			return unless $found;
+		} else {
+			return unless &_attribute_matches($doc, $key, $value);
+		}
+	}
+
+	# if we've reached here, the document matches, so return true
+	return 1;
+}
+
+##############################################
+# _attribute_matches( $doc, $key, $value )   #
+# ========================================== #
+# $doc   - the document hash-ref             #
+# $key   - the attribute being checked       #
+# $value - the constraint for the attribute  #
+#          taken from the query hash-ref     #
+# ------------------------------------------ #
+# returns true if constraint is met in the   #
+# provided document.                         #
+##############################################
+
+sub _attribute_matches {
+	my ($doc, $key, $value) = @_;
+
+	if (!ref $value) {		# if value is a scalar, we need to check for equality
+					# (or, if the attribute is an array in the document,
+					# we need to check the value exists in it)
+		return unless $doc->{$key};
+		if (ref $doc->{$key} eq 'ARRAY') { # check the array has the requested value
+			return unless &_array_has_eq($value, $doc->{$key});
+		} elsif (!ref $doc->{$key}) { # check the values are equal
+			return unless $doc->{$key} eq $value;
+		} else { # we can't compare a non-scalar to a scalar, so return false
+			return;
+		}
+	} elsif (ref $value eq 'Regexp') {	# if the value is a regex, we need to check
+						# for a match (or, if the attribute is an array
+						# in the document, we need to check at least one
+						# value in it matches it)
+		return unless $doc->{$key};
+		if (ref $doc->{$key} eq 'ARRAY') {
+			return unless &_array_has_re($value, $doc->{$key});
+		} elsif (!ref $doc->{$key}) { # check the values match
+			return unless $doc->{$key} =~ $value;
+		} else { # we can't compare a non-scalar to a scalar, so return false
+			return;
+		}
+	} elsif (ref $value eq 'HASH') { # if the value is a hash, than it either contains
+					 # advanced queries, or it's just a hash that we
+					 # want the document to have as-is
+		unless (&_has_adv_que($value)) {
+			# value hash-ref doesn't have any advanced
+			# queries, we need to check our document
+			# has an attributes with exactly the same hash-ref
+			# (and name of course)
+			return unless Compare($value, $doc->{$key});
+		} else {
+			# value contains advanced queries,
+			# we need to make sure our document has an
+			# attribute with the same name that matches
+			# all these queries
+			foreach my $q (keys %$value) {
+				my $term = $value->{$q};
+				if ($q eq '$gt') {
+					return unless defined $doc->{$key} && !ref $doc->{$key};
+					if (is_float($doc->{$key})) {
+						return unless $doc->{$key} > $term;
+					} else {
+						return unless $doc->{$key} gt $term;
+					}
+				} elsif ($q eq '$gte') {
+					return unless defined $doc->{$key} && !ref $doc->{$key};
+					if (is_float($doc->{$key})) {
+						return unless $doc->{$key} >= $term;
+					} else {
+						return unless $doc->{$key} ge $term;
+					}
+				} elsif ($q eq '$lt') {
+					return unless defined $doc->{$key} && !ref $doc->{$key};
+					if (is_float($doc->{$key})) {
+						return unless $doc->{$key} < $term;
+					} else {
+						return unless $doc->{$key} lt $term;
+					}
+				} elsif ($q eq '$lte') {
+					return unless defined $doc->{$key} && !ref $doc->{$key};
+					if (is_float($doc->{$key})) {
+						return unless $doc->{$key} <= $term;
+					} else {
+						return unless $doc->{$key} le $term;
+					}
+				} elsif ($q eq '$eq') {
+					return unless defined $doc->{$key} && !ref $doc->{$key};
+					if (is_float($doc->{$key})) {
+						return unless $doc->{$key} == $term;
+					} else {
+						return unless $doc->{$key} eq $term;
+					}
+				} elsif ($q eq '$ne') {
+					return unless defined $doc->{$key} && !ref $doc->{$key};
+					if (is_float($doc->{$key})) {
+						return unless $doc->{$key} != $term;
+					} else {
+						return unless $doc->{$key} ne $term;
+					}
+				} elsif ($q eq '$exists') {
+					if ($term) {
+						return unless exists $doc->{$key};
+					} else {
+						return if exists $doc->{$key};
+					}
+				} elsif ($q eq '$mod' && ref $term eq 'ARRAY' && scalar @$term == 2) {
+					return unless defined $doc->{$key} && is_float($doc->{$key}) && $doc->{$key} % $term->[0] == $term->[1];
+				} elsif ($q eq '$in' && ref $term eq 'ARRAY') {
+					return unless defined $doc->{$key} && &_value_in($doc->{$key}, $term);
+				} elsif ($q eq '$nin' && ref $term eq 'ARRAY') {
+					return unless defined $doc->{$key} && !&_value_in($doc->{$key}, $term);
+				} elsif ($q eq '$size' && is_int($term)) {
+					return unless defined $doc->{$key} && ((ref $doc->{$key} eq 'ARRAY' && scalar @{$doc->{$key}} == $term) || (ref $doc->{$key} eq 'HASH' && scalar keys %{$doc->{$key}} == $term));
+				} elsif ($q eq '$all' && ref $term eq 'ARRAY') {
+					return unless defined $doc->{$key} && ref $doc->{$key} eq 'ARRAY';
+					foreach (@$term) {
+						return unless &_value_in($_, $doc->{$key});
+					}
+				} elsif ($q eq '$type' && !ref $term) {
+					if ($term eq 'int') {
+						return unless defined $doc->{$key} && is_int($doc->{$key});
+					} elsif ($term eq 'float') {
+						return unless defined $doc->{$key} && is_float($doc->{$key});
+					} elsif ($term eq 'real') {
+						return unless defined $doc->{$key} && is_real($doc->{$key});
+					} elsif ($term eq 'whole') {
+						return unless defined $doc->{$key} && is_whole($doc->{$key});
+					} elsif ($term eq 'string') {
+						return unless defined $doc->{$key} && is_string($doc->{$key});
+					} elsif ($term eq 'array') {
+						return unless defined $doc->{$key} && ref $doc->{$key} eq 'ARRAY';
+					} elsif ($term eq 'hash') {
+						return unless defined $doc->{$key} && ref $doc->{$key} eq 'HASH';
+					} elsif ($term eq 'bool') {
+						# boolean - not really supported, will always return true since everything in Perl is a boolean
+					} elsif ($term eq 'date') {
+						return unless defined $doc->{$key} && !ref $doc->{$key};
+						my $date = try { DateTime::Format::W3CDTF->parse_datetime($doc->{$key}) } catch { undef };
+						return unless blessed $date && blessed $date eq 'DateTime';
+					} elsif ($term eq 'null') {
+						return unless exists $doc->{$key} && !defined $doc->{$key};
+					} elsif ($term eq 'regex') {
+						return unless defined $doc->{$key} && ref $doc->{$key} eq 'Regexp';
+					}
+				}
+			}
+		}
+	} elsif (ref $value eq 'ARRAY') {
+		return unless Compare($value, $doc->{$key});
+	}
+
+	return 1;
+}
+
+##############################################
+# _array_has_eq( $value, \@array )           #
+# ========================================== #
+# $value - the value to check for            #
+# $array - the array to search in            #
+# ------------------------------------------ #
+# returns true if the value exists in the    #
+# array provided.                            #
+##############################################
+
+sub _array_has_eq {
+	my ($value, $array) = @_;
+
+	foreach (@$array) {
+		return 1 if $_ eq $value;
+	}
+
+	return;
+}
+
+##############################################
+# _array_has_re( $regex, \@array )           #
+# ========================================== #
+# $regex - the regex to check for            #
+# $array - the array to search in            #
+# ------------------------------------------ #
+# returns true if a value exists in the      #
+# array provided that matches the regex.     #
+##############################################
+
+sub _array_has_re {
+	my ($re, $array) = @_;
+
+	foreach (@$array) {
+		return 1 if m/$re/;
+	}
+
+	return;
+}
+
+##############################################
+# _has_adv_que( \%hash )                     #
+# ========================================== #
+# $hash - the hash-ref to search in          #
+# ------------------------------------------ #
+# returns true if the hash-ref has any of    #
+# the lang's advanced query operators        #
+##############################################
+
+sub _has_adv_que {
+	my $hash = shift;
+
+	foreach ('$gt', '$gte', '$lt', '$lte', '$all', '$exists', '$mod', '$eq', '$ne', '$in', '$nin', '$size', '$type') {
+		return 1 if exists $hash->{$_};
+	}
+
+	return;
+}
+
+##############################################
+# _value_in( $value, \@array )               #
+# ========================================== #
+# $value - the value to check for            #
+# $array - the array to search in            #
+# ------------------------------------------ #
+# returns true if the value is one of the    #
+# values from the array.                     #
+##############################################
+
+sub _value_in {
+	my ($value, $array) = @_;
+
+	foreach (@$array) {
+		next if is_float($_) && !is_float($value);
+		next if !is_float($_) && is_float($value);
+		return 1 if is_float($_) && $value == $_;
+		return 1 if !is_float($_) && $value eq $_;
+	}
+
+	return;
+}
+
+=head2 update_doc( \%document, \%update )
+
+Receives a document hash-ref and an update hash-ref, and updates the
+document in-place according to the update hash-ref. Also returns the document
+after the update. If the update hash-ref doesn't have any of the update
+modifiers described by the language, then the update hash-ref is considered
+as what the document should now be, and so will simply replace the document
+hash-ref.
+
+See L<MQUL::Reference/"UPDATE STRUCTURE"> to learn about the structure of
+update hash-refs.
+
+=cut
+
+sub update_doc {
+	my ($doc, $obj) = @_;
+
+	croak "MQUL::update_doc() requires a document hash-ref."
+		unless defined $doc && ref $doc && ref $doc eq 'HASH';
+	croak "MQUL::update_doc() requires an update hash-ref."
+		unless defined $obj && ref $obj && ref $obj eq 'HASH';
+
+	# we only need to do something if the $obj hash-ref has any advanced
+	# update operations, otherwise $obj is meant to be the new $doc
+
+	if (&_has_adv_upd($obj)) {
+		foreach my $op (keys %$obj) {
+			if ($op eq '$inc') {
+				# increase numerically
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					$doc->{$field} ||= 0;
+					$doc->{$field} += $obj->{$op}->{$field};
+				}
+			} elsif ($op eq '$set') {
+				# set key-value pairs
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					$doc->{$field} = $obj->{$op}->{$field};
+				}
+			} elsif ($op eq '$unset') {
+				# remove key-value pairs
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					delete $doc->{$field} if $obj->{$op}->{$field};
+				}
+			} elsif ($op eq '$rename') {
+				# rename attributes
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					$doc->{$obj->{$op}->{$field}} = delete $doc->{$field}
+						if exists $doc->{$field};
+				}
+			} elsif ($op eq '$push') {
+				# push values to end of arrays
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					push(@{$doc->{$field}}, $obj->{$op}->{$field});
+				}
+			} elsif ($op eq '$pushAll') {
+				# push a list of values to end of arrays
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					push(@{$doc->{$field}}, @{$obj->{$op}->{$field}});
+				}
+			} elsif ($op eq '$addToSet') {
+				# push values to arrays only if they're not already there
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					my @add = ref $obj->{$op}->{$field} && ref $obj->{$op}->{$field} eq 'ARRAY' ? @{$obj->{$op}->{$field}} : ($obj->{$op}->{$field});
+					foreach my $val (@add) {
+						push(@{$doc->{$field}}, $val)
+							unless defined &_index_of($val, $doc->{$field});
+					}
+				}
+			} elsif ($op eq '$pop') {
+				# pop the last item from an array
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					pop(@{$doc->{$field}})
+						if $obj->{$op}->{$field};
+				}
+			} elsif ($op eq '$shift') {
+				# shift the first item from an array
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					shift(@{$doc->{$field}})
+						if $obj->{$op}->{$field};
+				}
+			} elsif ($op eq '$splice') {
+				# splice offsets from arrays
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					next unless	ref $obj->{$op}->{$field} &&
+							ref $obj->{$op}->{$field} eq 'ARRAY' &&
+							scalar @{$obj->{$op}->{$field}} == 2;
+					$doc->{$field} ||= [];
+					splice(@{$doc->{$field}}, $obj->{$op}->{$field}->[0], $obj->{$op}->{$field}->[1]);
+				}
+			} elsif ($op eq '$pull') {
+				# remove values from arrays
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					my $i = &_index_of($obj->{$op}->{$field}, $doc->{$field});
+					while (defined $i) {
+						splice(@{$doc->{$field}}, $i, 1);
+						$i = &_index_of($obj->{$op}->{$field}, $doc->{$field});
+					}
+				}
+			} elsif ($op eq '$pullAll') {
+				# remove a list of values from arrays
+				next unless ref $obj->{$op} eq 'HASH';
+				foreach my $field (keys %{$obj->{$op}}) {
+					croak "The $field attribute is not an array in the doc."
+						if defined $doc->{$field} && ref $doc->{$field} ne 'ARRAY';
+					$doc->{$field} ||= [];
+					foreach my $value (@{$obj->{$op}->{$field}}) {
+						my $i = &_index_of($value, $doc->{$field});
+						while (defined $i) {
+							splice(@{$doc->{$field}}, $i, 1);
+							$i = &_index_of($value, $doc->{$field});
+						}
+					}
+				}
+			}
+		}
+	} else {
+		# $obj is actually the new $doc
+		%$doc = %$obj;
+	}
+
+	return $doc;
+}
+
+##############################################
+# _has_adv_upd( \%hash )                     #
+# ========================================== #
+# $hash - the hash-ref to search in          #
+# ------------------------------------------ #
+# returns true if the hash-ref has any of    #
+# the lang's advanced update operators       #
+##############################################
+
+sub _has_adv_upd {
+	my $hash = shift;
+
+	foreach ('$inc', '$set', '$unset', '$push', '$pushAll', '$addToSet', '$pop', '$shift', '$splice', '$pull', '$pullAll', '$rename', '$bit') {
+		return 1 if exists $hash->{$_};
+	}
+
+	return;
+}
+
+##############################################
+# _index_of( $value, \@array )               #
+# ========================================== #
+# $value - the value to search for           #
+# $array - the array to search in            #
+# ------------------------------------------ #
+# searches for the provided value in the     #
+# array, and returns its index if it is      #
+# found, or undef otherwise.                 #
+##############################################
+
+sub _index_of {
+	my ($value, $array) = @_;
+
+	for (my $i = 0; $i < scalar @$array; $i++) {
+		if (is_float($array->[$i]) && is_float($value)) {
+			return $i if $array->[$i] == $value;
+		} else {
+			return $i if $array->[$i] eq $value;
+		}
+	}
+
+	return;
+}
+
+=head1 DIAGNOSTICS
+
+=over
+
+=item C<< MQUL::doc_matches() requires a document hash-ref. >>
+
+This error means that you've either haven't passed the C<doc_matches()>
+method any parameters, or given it a non-hash-ref document.
+
+=item C<< MQUL::doc_matches() expects a query hash-ref. >>
+
+This error means that you've passed the C<doc_matches()> attribute a
+non-hash-ref query variable. While you don't actually have to pass a
+query variable, if you do, it has to be a hash-ref.
+
+=item C<< MQUL::update_doc() requires a document hash-ref. >>
+
+This error means that you've either haven't passed the C<update_doc()>
+method any parameters, or given it a non-hash-ref document.
+
+=item C<< MQUL::update_doc() requires an update hash-ref. >>
+
+This error means that you've passed the C<update_doc()> method a
+non-hash-ref update variable.
+
+=item C<< The %s attribute is not an array in the doc. >>
+
+This error means that your update hash-ref tries to modify an array attribute
+(with C<$push>, C<$pushAll>, C<$addToSet>, C<$pull>, C<$pullAll>,
+C<$pop>, C<$shift> and C<$splice>), but the attribute in the document
+provided to the C<update_doc()> method is not an array.
+
+=back
+
+=head1 CONFIGURATION AND ENVIRONMENT
+  
+MQUL requires no configuration files or environment variables.
+
+=head1 DEPENDENCIES
+
+MQUL depends on the following modules:
+
+=over
+
+=item * L<Data::Compare>
+
+=item * L<Data::Types>
+
+=item * L<DateTime::Format::W3CDTF>
+
+=item * L<Scalar::Util>
+
+=item * L<Try::Tiny>
+
+=back
+
+=head1 INCOMPATIBILITIES
+
+None reported.
+
+=head1 BUGS AND LIMITATIONS
+
+No bugs have been reported.
+
+Please report any bugs or feature requests to
+C<bug-MQUL@rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=MQUL>.
+
+=head1 AUTHOR
+
+Ido Perlmuter <ido at ido50 dot net>
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (c) 2011, Ido Perlmuter C<< ido at ido50 dot net >>.
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself, either version
+5.8.1 or any later version. See L<perlartistic|perlartistic> 
+and L<perlgpl|perlgpl>.
+
+The full text of the license can be found in the
+LICENSE file included with this module.
+
+=head1 DISCLAIMER OF WARRANTY
+
+BECAUSE THIS SOFTWARE IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+FOR THE SOFTWARE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN
+OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+PROVIDE THE SOFTWARE "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
+EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE
+ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH
+YOU. SHOULD THE SOFTWARE PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL
+NECESSARY SERVICING, REPAIR, OR CORRECTION.
+
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+REDISTRIBUTE THE SOFTWARE AS PERMITTED BY THE ABOVE LICENCE, BE
+LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL,
+OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE
+THE SOFTWARE (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING
+RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
+FAILURE OF THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
+SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES.
+
+=cut
+
+1;
+__END__
