@@ -4,7 +4,7 @@
       "Ido Perlmuter <ido@ido50.net>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Dist::Zilla version 4.200004, CPAN::Meta::Converter version 2.110930",
+   "generated_by" : "Dist::Zilla version 4.200014, CPAN::Meta::Converter version 2.112150",
    "license" : [
       "perl_5"
    ],
@@ -16,7 +16,7 @@
    "prereqs" : {
       "configure" : {
          "requires" : {
-            "ExtUtils::MakeMaker" : "6.31"
+            "ExtUtils::MakeMaker" : "6.30"
          }
       },
       "runtime" : {
@@ -39,13 +39,13 @@
    },
    "release_status" : "stable",
    "resources" : {
-      "homepage" : "http://github.com/ido50/MQUL/tree",
+      "homepage" : "http://github.com/ido50/MQUL",
       "repository" : {
          "type" : "git",
-         "url" : "git://github.com/ido50/MQUL.git",
-         "web" : "http://github.com/ido50/MQUL/tree"
+         "url" : "http://github.com/ido50/MQUL",
+         "web" : "http://github.com/ido50/MQUL"
       }
    },
-   "version" : "0.001001"
+   "version" : "0.002"
 }
 

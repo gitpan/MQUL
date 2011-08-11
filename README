@@ -2,7 +2,7 @@ NAME
     MQUL - General purpose, MongoDB-style query and update language
 
 VERSION
-    version 0.001001
+    version 0.002
 
 SYNOPSIS
             use MQUL qw/doc_matches update_doc/;

@@ -4,7 +4,7 @@ MQUL::Reference - Describes the MQUL query and update language
 
 =head1 VERSION
 
-version 0.001001
+version 0.002
 
 =head1 INTRODUCTION
 
