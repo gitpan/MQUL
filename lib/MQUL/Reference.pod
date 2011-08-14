@@ -4,7 +4,7 @@ MQUL::Reference - Describes the MQUL query and update language
 
 =head1 VERSION
 
-version 0.002
+version 0.003
 
 =head1 INTRODUCTION
 
@@ -61,6 +61,10 @@ be a data structure such as an array or hash reference. For example:
 A document will match this constraint if it has the 'numbers' attribute,
 with exactly the same hash-ref from the query as its value. In order to compare the
 document's structure with the constraint structure, MQUL uses L<Data::Compare>.
+
+The equality constraint in MQUL also supports comparing L<MongoDB::OID>
+objects and L<MorboDB::OID> objects (which are used by L<MorboDB>, my
+in-memory "clone" of L<MongoDB>).
 
 =head2 THE LARGER/SMALLER THAN CONSTRAINTS
 
@@ -135,7 +139,7 @@ data structures.
 For completeness, MQUL also provides a second equality constraint, called
 C<$eq>, which is exactly the opposite of C<$ne>. However, this equality
 constraint, just like C<$ne>, does not work with arrays and complex data
-structures.
+structures, nor with L<MongoDB::OID> and L<MorboDB::OID> objects.
 
 =head2 THE EXISTS (OR NOT EXISTS) CONSTRAINTS
 

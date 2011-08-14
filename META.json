@@ -4,7 +4,7 @@
       "Ido Perlmuter <ido@ido50.net>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Dist::Zilla version 4.200014, CPAN::Meta::Converter version 2.112150",
+   "generated_by" : "Dist::Zilla version 4.200015, CPAN::Meta::Converter version 2.112150",
    "license" : [
       "perl_5"
    ],
@@ -46,6 +46,6 @@
          "web" : "http://github.com/ido50/MQUL"
       }
    },
-   "version" : "0.002"
+   "version" : "0.003"
 }
 
