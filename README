@@ -2,7 +2,7 @@ NAME
     MQUL - General purpose, MongoDB-style query and update language
 
 VERSION
-    version 0.003
+    version 0.004
 
 SYNOPSIS
             use MQUL qw/doc_matches update_doc/;
@@ -62,7 +62,8 @@ DESCRIPTION
     application that performs tests (such as process monitoring for
     example), and uses the query language to determine whether the results
     are valid or not (in our monitoring example, that could be CPU usage
-    above a certain threshold and stuff like that).
+    above a certain threshold and stuff like that). It is also used by
+    MorboDB, an in-memory clone of MongoDB.
 
   THE LANGUAGE
     The language itself is described in MQUL::Reference. This document only
@@ -148,7 +149,7 @@ AUTHOR
     Ido Perlmuter <ido at ido50 dot net>
 
 LICENSE AND COPYRIGHT
-    Copyright (c) 2011, Ido Perlmuter "ido at ido50 dot net".
+    Copyright (c) 2011-2013, Ido Perlmuter "ido at ido50 dot net".
 
     This module is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself, either version 5.8.1 or any later

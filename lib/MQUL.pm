@@ -16,7 +16,7 @@ use DateTime::Format::W3CDTF;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "0.003";
+our $VERSION = "0.004";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -25,7 +25,7 @@ MQUL - General purpose, MongoDB-style query and update language
 
 =head1 VERSION
 
-version 0.003
+version 0.004
 
 =head1 SYNOPSIS
 
@@ -86,7 +86,8 @@ original code. Outside of the database world, I plan to use it in an application
 that performs tests (such as process monitoring for example), and uses the
 query language to determine whether the results are valid or not (in our
 monitoring example, that could be CPU usage above a certain threshold and
-stuff like that). 
+stuff like that). It is also used by L<MorboDB>, an in-memory clone of
+MongoDB.
 
 =head2 THE LANGUAGE
 
@@ -130,10 +131,13 @@ sub doc_matches {
 				my $ok = 1;
 
 				while (my ($k, $v) = each %$_) {
+					&_inject_function($doc, $k) if $k =~ m/^(abs|min|max)\(([^)]+)\)$/;
 					unless (&_attribute_matches($doc, $k, $v)) {
 						undef $ok;
+						delete $doc->{$k} if $k =~ m/^(abs|min|max)\(([^)]+)\)$/;
 						last;
 					}
+					delete $doc->{$k} if $k =~ m/^(abs|min|max)\(([^)]+)\)$/;
 				}
 
 				if ($ok) { # document matches this criteria
@@ -143,7 +147,9 @@ sub doc_matches {
 			}
 			return unless $found;
 		} else {
+			&_inject_function($doc, $key) if $key =~ m/^(abs|min|max)\(([^)]+)\)$/;
 			return unless &_attribute_matches($doc, $key, $value);
+			delete $doc->{$key} if $key =~ m/^(abs|min|max)\(([^)]+)\)$/;
 		}
 	}
 
@@ -591,6 +597,66 @@ sub _index_of {
 	return;
 }
 
+##############################################
+# _min( @values )                            #
+# ========================================== #
+# @values - a list of numerical values       #
+# ------------------------------------------ #
+# returns the smallest number in @values     #
+##############################################
+
+sub _min {
+	my $min = shift;
+	foreach (@_) {
+		$min = $_ if $_ < $min;
+	}
+	return $min;
+}
+
+##############################################
+# _max( @values )                            #
+# ========================================== #
+# @values - a list of numerical values       #
+# ------------------------------------------ #
+# returns the largest number in @values      #
+##############################################
+
+sub _max {
+	my $max = shift;
+	foreach (@_) {
+		$max = $_ if $_ > $max;
+	}
+	return $max;
+}
+
+##############################################
+# _inject_function( $doc, $key )             #
+# ========================================== #
+# $doc - the document                        #
+# $key - the key referencing a function and  #
+#        a list of attributes, such as       #
+#        min(attr1, attr2, attr3)            #
+# ------------------------------------------ #
+# calculates the value using the appropriate #
+# function and injects it into the document  #
+# as if it were a true attribute of it (it   #
+# is later removed from the document)        #
+##############################################
+
+sub _inject_function {
+	my ($doc, $key) = @_;
+
+	my ($func, @attrs) = ($1, split(/,\s*/, $2));
+	my @vals = map { $doc->{$_} } @attrs;
+	if ($func eq 'abs') {
+		$doc->{$key} = abs shift @vals;
+	} elsif ($func eq 'min') {
+		$doc->{$key} = &_min(@vals);
+	} else {
+		$doc->{$key} = &_max(@vals);
+	}
+}
+
 =head1 DIAGNOSTICS
 
 =over
@@ -665,7 +731,7 @@ Ido Perlmuter <ido at ido50 dot net>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2011, Ido Perlmuter C<< ido at ido50 dot net >>.
+Copyright (c) 2011-2013, Ido Perlmuter C<< ido at ido50 dot net >>.
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself, either version

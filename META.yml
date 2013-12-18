@@ -7,7 +7,7 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: 6.30
 dynamic_config: 0
-generated_by: 'Dist::Zilla version 4.200015, CPAN::Meta::Converter version 2.112150'
+generated_by: 'Dist::Zilla version 5.006, CPAN::Meta::Converter version 2.132830'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -22,7 +22,9 @@ requires:
   Scalar::Util: 0
   Try::Tiny: 0
   perl: 5.006
+  strict: 0
+  warnings: 0
 resources:
-  homepage: http://github.com/ido50/MQUL
-  repository: http://github.com/ido50/MQUL
-version: 0.003
+  homepage: https://github.com/ido50/MQUL
+  repository: https://github.com/ido50/MQUL.git
+version: 0.004

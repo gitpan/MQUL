@@ -1,5 +1,5 @@
 This file contains message digests of all files listed in MANIFEST,
-signed via the Module::Signature module, version 0.68.
+signed via the Module::Signature module, version 0.73.
 
 To verify the content in this distribution, first make sure you have
 Module::Signature installed, then type:
@@ -14,28 +14,28 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA256
 
-SHA1 c6351a49a71e4bd0831eba94075a8666f40dc1bd Changes
+SHA1 453f01619a27e8f1e46c197abaa11b13ba56d5bd Changes
 SHA1 28ae9821ca88a0582b36fac55dc52cd696175774 INSTALL
-SHA1 0b9ba721d88fc4c004cfe7ebe970686db5c24784 LICENSE
+SHA1 f88865d7b93ef635cb59c8787bbfd3138c7d873f LICENSE
 SHA1 5b5cb81ece438684639b7552bc10b42b4e69492e MANIFEST
 SHA1 022d5edc0230a6e6be31606f6d3f4bdb08757161 MANIFEST.SKIP
-SHA1 2c64d73e7ece8783308e71a57c4720aa75db54f1 META.json
-SHA1 ed5e25d55733454646decbd74e265df33584fdc4 META.yml
-SHA1 14d4826e25f79e65ec605d6725588fb4f285beb2 Makefile.PL
-SHA1 7ae63496723c0cb3783b3dbc4e5af2322455bf49 README
+SHA1 322aa60360403ba9e68e84cc04c051be9bc66ccb META.json
+SHA1 f7c04537b97f2d0b609cafbb8b1bc9bffd62b4ac META.yml
+SHA1 112dd7daf70ffeba8e8c20f1ca400a0ee89bf83a Makefile.PL
+SHA1 e9c4c7d14b27ae4732a71b04f031d956f3f28010 README
 SHA1 cd0870e100cc193cec397f6af4713b50ca3ec705 dist.ini
-SHA1 825636e140717f53346669b998eb9f46c0a787a0 lib/MQUL.pm
-SHA1 51f6fbfd5687812c2b54d078235f0d600f51bfbb lib/MQUL/Reference.pod
+SHA1 927415b0670ef3badc496bb7cb9bca417acd5a73 lib/MQUL.pm
+SHA1 ca94d916096be5db08101bd05e500d8445a2f9db lib/MQUL/Reference.pod
 SHA1 4124b4d1ddf0187e98ef124a50d311a4261c6e41 t/00-load.t
-SHA1 618641b77c29a89bbf175e44f1021ccf2e49d409 t/01-querying.t
+SHA1 f8b573be765174208311df62efdd496b584d6064 t/01-querying.t
 SHA1 5f8337b9757017e97297e43c2942b0bc9afb7d4f t/02-updating.t
 SHA1 87768d177f8c2e2df9c591cde869e7c8a245555e t/release-dist-manifest.t
 SHA1 9433c240fe590bc404ab68ff63984df763e347ed t/release-pod-coverage.t
 SHA1 b30cbdfaf935017c4568c0c91b242438cb87786e t/release-pod-syntax.t
 -----BEGIN PGP SIGNATURE-----
-Version: GnuPG v1.4.11 (GNU/Linux)
+Version: GnuPG v2.0.22 (GNU/Linux)
 
-iF4EAREIAAYFAk5INNsACgkQa4OHQAFM10fu1QD9HoqywWm80QRbz/3x3eHrMLhc
-m4RkX5I0hkCsTWlfmhcBAJaQk74qGj9vjX38YIIi8Yx8QbGyfzRibPzzaaZJ+EBk
-=0igd
+iF4EAREIAAYFAlKyKuoACgkQa4OHQAFM10fP0gD+NDIiyGmPwvlTPn6cHdhYBCjs
+s6iNK9dcPV+xXc35qpcA/iWDgRnIV3Txphb6BZ3QFnxOhCLDYp+KTSiP+jYKSote
+=Mbs8
 -----END PGP SIGNATURE-----
